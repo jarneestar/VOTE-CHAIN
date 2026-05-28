@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Register Face · VoteChain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+  :root {
+    --bg:        #05080f;
+    --surface:   #0c1220;
+    --border:    #1a2640;
+    --accent:    #00e5ff;
+    --accent2:   #7b61ff;
+    --warn:      #ff5f57;
+    --ok:        #00e676;
+    --text:      #e8edf5;
+    --muted:     #4a5a74;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    overflow-x: hidden;
+  }
+
+  /* ── background grid ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ── card ── */
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 0 60px rgba(0,229,255,.06);
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 10%; right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+    border-radius: 100px;
+  }
+
+  /* ── logo strip ── */
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 2rem;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .logo-text {
+    font-family: var(--font-head);
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: .5px;
+  }
+  .logo-badge {
+    margin-left: auto;
+    font-size: .65rem;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 100px;
+    padding: 2px 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-family: var(--font-head);
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: .4rem;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: .78rem;
+    margin-bottom: 1.8rem;
+    line-height: 1.6;
+  }
+
+  /* ── input ── */
+  .field { margin-bottom: 1.2rem; }
+  label {
+    display: block;
+    font-size: .72rem;
+    color: var(--accent);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: .45rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .75rem 1rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: .95rem;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  /* ── camera box ── */
+  .cam-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+  }
+  #video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror */
+  }
+  #overlay {
+    position: absolute; inset: 0;
+    transform: scaleX(-1);
+    pointer-events: none;
+  }
+
+  /* face ring overlay */
+  .face-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 220px; height: 270px;
+    border: 2px dashed rgba(0,229,255,.3);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%,100% { border-color: rgba(0,229,255,.2); }
+    50%      { border-color: rgba(0,229,255,.6); }
+  }
+
+  /* loading overlay */
+  .cam-loading {
+    position: absolute; inset: 0;
+    background: var(--surface);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: .8rem;
+    font-size: .8rem;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── status bar ── */
+  .status {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .65rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,.3);
+    font-size: .8rem;
+    margin-bottom: 1.2rem;
+    transition: all .3s;
+    min-height: 2.8rem;
+  }
+  .status.idle     { color: var(--muted); border-color: var(--border); }
+  .status.scanning { color: var(--accent); border-color: rgba(0,229,255,.3); }
+  .status.found    { color: var(--ok);    border-color: rgba(0,230,118,.3); }
+  .status.error    { color: var(--warn);  border-color: rgba(255,95,87,.3); }
+  .status.success  { color: var(--ok);    border-color: rgba(0,230,118,.3); background: rgba(0,230,118,.05); }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: currentColor;
+  }
+  .status.scanning .dot { animation: blink .8s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── button ── */
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .9rem;
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font-head);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+    letter-spacing: .5px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #05080f;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+  .btn-link {
+    background: transparent;
+    color: var(--muted);
+    font-size: .78rem;
+    margin-top: .8rem;
+    padding: .5rem;
+    font-family: var(--font-mono);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .btn-link:hover { color: var(--text); }
+
+  .progress-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 100px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 100px;
+    width: 0%;
+    transition: width .4s ease;
+  }
+
+  .step-label {
+    font-size: .7rem;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: .3rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">🗳</div>
+    <span class="logo-text">VoteChain</span>
+    <span class="logo-badge">Register</span>
+  </div>
+
+  <h1>Face Registration</h1>
+  <p class="subtitle">Register your face once. It will be used to verify your identity when you vote.</p>
+
+  <!-- step progress -->
+  <div class="step-label">
+    <span id="stepLabel">Step 1 of 3 — Enter Voter ID</span>
+    <span id="stepPct">0%</span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+  <!-- voter id -->
+  <div class="field">
+    <label>Voter ID</label>
+    <input type="text" id="voterIdInput" placeholder="e.g. VOTER-2024-001" autocomplete="off" />
+  </div>
+
+  <!-- camera -->
+  <div class="cam-wrap">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+    <div class="face-ring" id="faceRing"></div>
+    <div class="cam-loading" id="camLoading">
+      <div class="spinner"></div>
+      <span id="loadingMsg">Loading AI models…</span>
+    </div>
+  </div>
+
+  <!-- status -->
+  <div class="status idle" id="statusBox">
+    <span class="dot"></span>
+    <span id="statusText">Enter your Voter ID to begin.</span>
+  </div>
+
+  <!-- buttons -->
+  <button class="btn btn-primary" id="captureBtn" disabled>
+    <span id="captureBtnText">📷  Capture &amp; Register Face</span>
+  </button>
+  <button class="btn btn-link" onclick="window.location.href='vote.html'">
+    Already registered? Go to voting →
+  </button>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// CONFIG — change this to your deployed backend URL
+// ─────────────────────────────────────────────────────────────
+const API_BASE   = 'http://localhost:4567';
+const MODEL_URL  = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+
+// ─────────────────────────────────────────────────────────────
+const video       = document.getElementById('video');
+const overlay     = document.getElementById('overlay');
+const camLoading  = document.getElementById('camLoading');
+const loadingMsg  = document.getElementById('loadingMsg');
+const statusBox   = document.getElementById('statusBox');
+const statusText  = document.getElementById('statusText');
+const captureBtn  = document.getElementById('captureBtn');
+const voterInput  = document.getElementById('voterIdInput');
+const progressFill = document.getElementById('progressFill');
+const stepLabel   = document.getElementById('stepLabel');
+const stepPct     = document.getElementById('stepPct');
+const faceRing    = document.getElementById('faceRing');
+
+let modelsLoaded  = false;
+let faceDetected  = false;
+let registered    = false;
+let scanLoop      = null;
+
+function setStatus(type, msg) {
+  statusBox.className = 'status ' + type;
+  statusText.textContent = msg;
+}
+
+function setStep(n, pct) {
+  const labels = ['', 'Step 1 of 3 — Enter Voter ID', 'Step 2 of 3 — Position Your Face', 'Step 3 of 3 — Complete'];
+  stepLabel.textContent = labels[n] || '';
+  stepPct.textContent   = pct + '%';
+  progressFill.style.width = pct + '%';
+}
+
+async function loadModels() {
+  loadingMsg.textContent = 'Loading AI models…';
+  try {
+    await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+    loadingMsg.textContent = 'Loading face landmarks…';
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    loadingMsg.textContent = 'Loading face recogniser…';
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    modelsLoaded = true;
+  } catch (err) {
+    loadingMsg.textContent = '⚠ Model load failed. Check console.';
+    console.error('face-api model load error:', err);
+    return false;
+  }
+  return true;
+}
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    overlay.width  = video.videoWidth;
+    overlay.height = video.videoHeight;
+    camLoading.style.display = 'none';
+    return true;
+  } catch (e) {
+    loadingMsg.textContent = '⚠ Camera access denied.';
+    return false;
+  }
+}
+
+function startScanLoop() {
+  const ctx = overlay.getContext('2d');
+  scanLoop = setInterval(async () => {
+    if (!modelsLoaded || video.readyState < 2) return;
+    const det = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                              .withFaceLandmarks()
+                              .withFaceDescriptor();
+
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+    if (det) {
+      // draw bounding box
+      const box = det.detection.box;
+      ctx.strokeStyle = '#00e5ff';
+      ctx.lineWidth   = 2;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+      faceDetected = true;
+      faceRing.style.borderColor = 'rgba(0,230,118,.6)';
+      if (!registered) {
+        setStatus('found', '✓ Face detected — click Capture to register.');
+        captureBtn.disabled = (voterInput.value.trim() === '');
+        setStep(2, 66);
+      }
+    } else {
+      faceDetected = false;
+      faceRing.style.borderColor = '';
+      if (!registered) {
+        setStatus('scanning', 'Scanning… position your face in the oval.');
+        captureBtn.disabled = true;
+        setStep(2, 33);
+      }
+    }
+  }, 400);
+}
+
+async function captureFace() {
+  if (!faceDetected || registered) return;
+  const voterId = voterInput.value.trim();
+  if (!voterId) { setStatus('error', 'Please enter your Voter ID first.'); return; }
+
+  captureBtn.disabled = true;
+  setStatus('scanning', 'Generating face descriptor…');
+
+  const det = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                            .withFaceLandmarks()
+                            .withFaceDescriptor();
+  if (!det) {
+    setStatus('error', 'Face not found in capture. Try again.');
+    captureBtn.disabled = false;
+    return;
+  }
+
+  const descriptor = Array.from(det.descriptor); // Float32Array → plain array
+
+  setStatus('scanning', 'Sending to server…');
+  try {
+    const res  = await fetch(`${API_BASE}/register-face`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ voterId, descriptor })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      registered = true;
+      clearInterval(scanLoop);
+      setStatus('success', '✓ Face registered successfully!');
+      setStep(3, 100);
+      captureBtn.textContent = '✓ Registered';
+      captureBtn.disabled    = true;
+      setTimeout(() => window.location.href = 'vote.html', 2000);
+    } else {
+      setStatus('error', '✗ ' + (data.message || 'Registration failed.'));
+      captureBtn.disabled = false;
+    }
+  } catch (err) {
+    setStatus('error', '✗ Server unreachable. Check API_BASE in config.');
+    captureBtn.disabled = false;
+    console.error(err);
+  }
+}
+
+// ── voter input triggers step change ──
+voterInput.addEventListener('input', () => {
+  if (voterInput.value.trim()) {
+    setStep(2, modelsLoaded ? 33 : 10);
+    if (!modelsLoaded) setStatus('idle', 'Waiting for AI models to load…');
+  } else {
+    setStep(1, 0);
+    captureBtn.disabled = true;
+  }
+});
+
+captureBtn.addEventListener('click', captureFace);
+
+// ── Boot ──
+(async () => {
+  setStep(1, 0);
+  const ok = await loadModels();
+  if (!ok) return;
+  const cam = await startCamera();
+  if (!cam) return;
+  setStatus('scanning', 'Scanning… position your face in the oval.');
+  setStep(2, 33);
+  startScanLoop();
+})();
+</script>
+</body>
+</html>

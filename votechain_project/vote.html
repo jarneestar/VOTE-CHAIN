@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cast Vote · VoteChain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+  :root {
+    --bg:       #05080f;
+    --surface:  #0c1220;
+    --border:   #1a2640;
+    --accent:   #00e5ff;
+    --accent2:  #7b61ff;
+    --warn:     #ff5f57;
+    --ok:       #00e676;
+    --text:     #e8edf5;
+    --muted:    #4a5a74;
+    --font-head:'Syne', sans-serif;
+    --font-mono:'DM Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 0 60px rgba(0,229,255,.06);
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: 10%; right: 10%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent);
+    border-radius: 100px;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: .5rem; margin-bottom: 2rem;
+  }
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .logo-text { font-family: var(--font-head); font-size: 1.1rem; font-weight: 800; letter-spacing: .5px; }
+  .logo-badge {
+    margin-left: auto;
+    font-size: .65rem;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+    border-radius: 100px;
+    padding: 2px 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  h1 { font-family: var(--font-head); font-size: 1.6rem; font-weight: 800; line-height: 1.2; margin-bottom: .4rem; }
+  .subtitle { color: var(--muted); font-size: .78rem; margin-bottom: 1.8rem; line-height: 1.6; }
+
+  /* ── input ── */
+  .field { margin-bottom: 1.2rem; }
+  label { display: block; font-size: .72rem; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: .45rem; }
+  input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .75rem 1rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: .95rem;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── camera ── */
+  .cam-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+  }
+  #video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #overlay { position: absolute; inset: 0; transform: scaleX(-1); pointer-events: none; }
+
+  .face-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    width: 220px; height: 270px;
+    border: 2px dashed rgba(0,229,255,.3);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%,100% { border-color: rgba(0,229,255,.2); }
+    50%      { border-color: rgba(0,229,255,.6); }
+  }
+
+  /* verified tick overlay */
+  .verified-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,10,20,.85);
+    display: none;
+    align-items: center; justify-content: center;
+    flex-direction: column;
+    gap: .8rem;
+    border-radius: 14px;
+  }
+  .verified-overlay.show { display: flex; }
+  .tick { font-size: 3.5rem; animation: pop .4s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes pop { from { transform: scale(0); } }
+  .verified-overlay p { color: var(--ok); font-size: .9rem; font-weight: 500; }
+
+  .cam-loading {
+    position: absolute; inset: 0;
+    background: var(--surface);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: .8rem; font-size: .8rem; color: var(--muted);
+  }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── status ── */
+  .status {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .65rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(0,0,0,.3);
+    font-size: .8rem;
+    margin-bottom: 1.2rem;
+    transition: all .3s;
+    min-height: 2.8rem;
+  }
+  .status.idle     { color: var(--muted); }
+  .status.scanning { color: var(--accent); border-color: rgba(0,229,255,.3); }
+  .status.found    { color: var(--ok);    border-color: rgba(0,230,118,.3); }
+  .status.error    { color: var(--warn);  border-color: rgba(255,95,87,.3); }
+  .status.success  { color: var(--ok);    border-color: rgba(0,230,118,.3); background: rgba(0,230,118,.05); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+  .status.scanning .dot { animation: blink .8s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── buttons ── */
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    width: 100%; padding: .9rem;
+    border: none; border-radius: 12px;
+    font-family: var(--font-head); font-size: 1rem; font-weight: 700;
+    cursor: pointer; transition: all .2s; letter-spacing: .5px;
+    margin-bottom: .6rem;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #05080f; }
+  .btn-primary:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-outline:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .btn-outline:disabled { opacity: .3; cursor: not-allowed; }
+
+  .btn-link { background: transparent; color: var(--muted); font-size: .78rem; padding: .5rem; font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; text-decoration: underline; text-underline-offset: 3px; }
+  .btn-link:hover { color: var(--text); }
+
+  /* ── candidate cards ── */
+  .candidates-section { display: none; margin-top: 1rem; }
+  .candidates-section.show { display: block; }
+  .candidates-section h2 { font-family: var(--font-head); font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
+
+  .candidate-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin-bottom: 1.2rem; }
+  .candidate-card {
+    position: relative;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 1.2rem .8rem;
+    cursor: pointer;
+    text-align: center;
+    transition: all .2s;
+    background: var(--bg);
+  }
+  .candidate-card:hover  { border-color: var(--accent2); transform: translateY(-2px); }
+  .candidate-card.selected { border-color: var(--accent); background: rgba(0,229,255,.06); }
+  .candidate-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 6px; right: 8px;
+    font-size: .75rem;
+    color: var(--accent);
+  }
+  .candidate-letter {
+    display: block;
+    font-family: var(--font-head);
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: .3rem;
+  }
+  .candidate-name { font-size: .7rem; color: var(--muted); }
+
+  /* ── divider ── */
+  .divider {
+    display: flex; align-items: center; gap: .8rem;
+    margin: 1.2rem 0;
+    color: var(--muted); font-size: .7rem;
+  }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── progress ── */
+  .progress-bar { width: 100%; height: 3px; background: var(--border); border-radius: 100px; margin-bottom: 1rem; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 100px; width: 0%; transition: width .4s ease; }
+  .step-label { font-size: .7rem; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: .3rem; }
+
+  /* success screen */
+  .success-screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1rem 0;
+    gap: 1rem;
+  }
+  .success-screen.show { display: flex; }
+  .success-icon { font-size: 4rem; animation: pop .5s cubic-bezier(.34,1.56,.64,1); }
+  .success-screen h2 { font-family: var(--font-head); font-size: 1.5rem; }
+  .success-screen p { color: var(--muted); font-size: .82rem; line-height: 1.6; }
+  .hash-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .7rem 1rem;
+    font-size: .7rem;
+    color: var(--accent);
+    word-break: break-all;
+    width: 100%;
+    text-align: left;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- ── logo ── -->
+  <div class="logo">
+    <div class="logo-icon">🗳</div>
+    <span class="logo-text">VoteChain</span>
+    <span class="logo-badge">Vote</span>
+  </div>
+
+  <!-- ── main flow ── -->
+  <div id="mainFlow">
+    <h1>Cast Your Vote</h1>
+    <p class="subtitle">Verify your face to unlock the ballot. Your vote is sealed in the blockchain.</p>
+
+    <div class="step-label">
+      <span id="stepLabel">Step 1 of 3 — Enter Voter ID</span>
+      <span id="stepPct">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+    <div class="field">
+      <label>Voter ID</label>
+      <input type="text" id="voterIdInput" placeholder="e.g. VOTER-2024-001" autocomplete="off" />
+    </div>
+
+    <div class="cam-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="overlay"></canvas>
+      <div class="face-ring" id="faceRing"></div>
+      <div class="verified-overlay" id="verifiedOverlay">
+        <div class="tick">✅</div>
+        <p>Identity Verified</p>
+      </div>
+      <div class="cam-loading" id="camLoading">
+        <div class="spinner"></div>
+        <span id="loadingMsg">Loading AI models…</span>
+      </div>
+    </div>
+
+    <div class="status idle" id="statusBox">
+      <span class="dot"></span>
+      <span id="statusText">Enter your Voter ID to begin.</span>
+    </div>
+
+    <button class="btn btn-primary" id="verifyBtn" disabled>
+      🔍  Verify My Face
+    </button>
+
+    <!-- candidate section (shown after verification) -->
+    <div class="candidates-section" id="candidatesSection">
+      <div class="divider">identity confirmed · select candidate</div>
+      <h2>Choose Your Candidate</h2>
+      <div class="candidate-grid" id="candidateGrid"></div>
+      <button class="btn btn-primary" id="voteBtn" disabled>
+        🔐  Cast Vote on Blockchain
+      </button>
+    </div>
+
+    <button class="btn btn-link" onclick="window.location.href='register.html'">
+      Not registered yet? Register face →
+    </button>
+  </div>
+
+  <!-- ── success screen ── -->
+  <div class="success-screen" id="successScreen">
+    <div class="success-icon">🎉</div>
+    <h2>Vote Recorded!</h2>
+    <p>Your vote has been sealed in the blockchain. Thank you for participating.</p>
+    <div class="hash-box" id="voteHashBox">Computing hash…</div>
+    <button class="btn btn-outline" onclick="window.location.href='results.html'" style="width:100%">
+      View Live Results →
+    </button>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────
+const API_BASE  = 'http://localhost:4567';
+const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+
+// ─────────────────────────────────────────────────────────────
+const video        = document.getElementById('video');
+const overlay      = document.getElementById('overlay');
+const camLoading   = document.getElementById('camLoading');
+const loadingMsg   = document.getElementById('loadingMsg');
+const statusBox    = document.getElementById('statusBox');
+const statusText   = document.getElementById('statusText');
+const verifyBtn    = document.getElementById('verifyBtn');
+const voterInput   = document.getElementById('voterIdInput');
+const progressFill = document.getElementById('progressFill');
+const stepLabel    = document.getElementById('stepLabel');
+const stepPct      = document.getElementById('stepPct');
+const faceRing     = document.getElementById('faceRing');
+const verifiedOverlay    = document.getElementById('verifiedOverlay');
+const candidatesSection  = document.getElementById('candidatesSection');
+const candidateGrid      = document.getElementById('candidateGrid');
+const voteBtn            = document.getElementById('voteBtn');
+
+let modelsLoaded  = false;
+let faceDetected  = false;
+let verified      = false;
+let selectedCand  = null;
+let scanLoop      = null;
+let currentDescriptor = null;
+
+function setStatus(type, msg) { statusBox.className = 'status ' + type; statusText.textContent = msg; }
+
+function setStep(n, pct) {
+  const labels = ['', 'Step 1 of 3 — Enter Voter ID', 'Step 2 of 3 — Face Verification', 'Step 3 of 3 — Cast Vote'];
+  stepLabel.textContent = labels[n] || '';
+  stepPct.textContent   = pct + '%';
+  progressFill.style.width = pct + '%';
+}
+
+// ── Load models ──
+async function loadModels() {
+  loadingMsg.textContent = 'Loading AI models…';
+  try {
+    await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+    loadingMsg.textContent = 'Loading face landmarks…';
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    loadingMsg.textContent = 'Loading face recogniser…';
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    modelsLoaded = true;
+    return true;
+  } catch (err) {
+    loadingMsg.textContent = '⚠ Model load failed.';
+    console.error(err);
+    return false;
+  }
+}
+
+// ── Start camera ──
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    overlay.width  = video.videoWidth;
+    overlay.height = video.videoHeight;
+    camLoading.style.display = 'none';
+    return true;
+  } catch (e) {
+    loadingMsg.textContent = '⚠ Camera access denied.';
+    return false;
+  }
+}
+
+// ── Continuous face scan (shows bounding box, enables verify button) ──
+function startScanLoop() {
+  const ctx = overlay.getContext('2d');
+  scanLoop = setInterval(async () => {
+    if (!modelsLoaded || video.readyState < 2 || verified) return;
+    const det = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                              .withFaceLandmarks()
+                              .withFaceDescriptor();
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    if (det) {
+      const box = det.detection.box;
+      ctx.strokeStyle = '#00e5ff';
+      ctx.lineWidth   = 2;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      currentDescriptor = det.descriptor;
+      faceDetected = true;
+      faceRing.style.borderColor = 'rgba(0,230,118,.6)';
+      if (!verified) {
+        setStatus('found', '✓ Face detected — click Verify to continue.');
+        verifyBtn.disabled = (voterInput.value.trim() === '');
+        setStep(2, 50);
+      }
+    } else {
+      currentDescriptor = null;
+      faceDetected = false;
+      faceRing.style.borderColor = '';
+      if (!verified) {
+        setStatus('scanning', 'Scanning… position your face in the oval.');
+        verifyBtn.disabled = true;
+        setStep(2, 33);
+      }
+    }
+  }, 400);
+}
+
+// ── Verify face against backend ──
+async function verifyFace() {
+  if (!faceDetected || verified) return;
+  const voterId = voterInput.value.trim();
+  if (!voterId) { setStatus('error', 'Please enter your Voter ID first.'); return; }
+
+  verifyBtn.disabled = true;
+  setStatus('scanning', 'Verifying identity with server…');
+
+  // capture fresh descriptor
+  const det = await faceapi.detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                            .withFaceLandmarks()
+                            .withFaceDescriptor();
+  if (!det) {
+    setStatus('error', 'Could not capture face. Try again.');
+    verifyBtn.disabled = false;
+    return;
+  }
+
+  const descriptor = Array.from(det.descriptor);
+
+  try {
+    const res  = await fetch(`${API_BASE}/verify-face`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ voterId, descriptor })
+    });
+    const data = await res.json();
+
+    if (data.verified) {
+      verified = true;
+      clearInterval(scanLoop);
+      voterInput.disabled = true;
+
+      // show verified overlay briefly
+      verifiedOverlay.classList.add('show');
+      setStatus('success', '✓ Identity verified! Select your candidate.');
+      setStep(3, 75);
+
+      setTimeout(() => {
+        loadCandidates();
+        candidatesSection.classList.add('show');
+      }, 1200);
+    } else {
+      setStatus('error', '✗ Face does not match. Please try again or re-register.');
+      verifyBtn.disabled = false;
+    }
+  } catch (err) {
+    setStatus('error', '✗ Server unreachable. Check API_BASE in config.');
+    verifyBtn.disabled = false;
+    console.error(err);
+  }
+}
+
+// ── Load candidates from backend ──
+async function loadCandidates() {
+  try {
+    const res  = await fetch(`${API_BASE}/candidates`);
+    const list = await res.json();  // ["A","B","C"]
+    candidateGrid.innerHTML = '';
+    list.forEach(name => {
+      const card = document.createElement('div');
+      card.className = 'candidate-card';
+      card.innerHTML = `<span class="candidate-letter">${name}</span><span class="candidate-name">Candidate ${name}</span>`;
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedCand = name;
+        voteBtn.disabled = false;
+      });
+      candidateGrid.appendChild(card);
+    });
+  } catch (e) {
+    candidateGrid.innerHTML = '<p style="color:var(--warn);font-size:.8rem">Could not load candidates.</p>';
+  }
+}
+
+// ── Cast vote ──
+async function castVote() {
+  if (!selectedCand || !verified) return;
+  const voterId = voterInput.value.trim();
+  voteBtn.disabled = true;
+  voteBtn.textContent = '⏳  Sealing in blockchain…';
+
+  try {
+    const res  = await fetch(`${API_BASE}/vote`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ voterId, candidate: selectedCand })
+    });
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      // show success screen
+      document.getElementById('mainFlow').style.display = 'none';
+      const ss = document.getElementById('successScreen');
+      ss.classList.add('show');
+      // show a fake hash for display (real one is in blockchain)
+      document.getElementById('voteHashBox').textContent =
+        'Block sealed · Candidate: ' + selectedCand + ' · Voter: ' + voterId;
+    } else {
+      setStatus('error', '✗ ' + (data.message || 'Vote failed.'));
+      voteBtn.disabled = false;
+      voteBtn.textContent = '🔐  Cast Vote on Blockchain';
+    }
+  } catch (err) {
+    setStatus('error', '✗ Server unreachable.');
+    voteBtn.disabled = false;
+    voteBtn.textContent = '🔐  Cast Vote on Blockchain';
+    console.error(err);
+  }
+}
+
+// ── Event listeners ──
+voterInput.addEventListener('input', () => {
+  if (voterInput.value.trim()) { setStep(2, modelsLoaded ? 33 : 10); }
+  else { setStep(1, 0); verifyBtn.disabled = true; }
+});
+
+verifyBtn.addEventListener('click', verifyFace);
+voteBtn.addEventListener('click', castVote);
+
+// ── Boot ──
+(async () => {
+  setStep(1, 0);
+  const ok  = await loadModels();
+  if (!ok) return;
+  const cam = await startCamera();
+  if (!cam) return;
+  setStatus('scanning', 'Scanning… position your face in the oval.');
+  setStep(2, 33);
+  startScanLoop();
+})();
+</script>
+</body>
+</html>
